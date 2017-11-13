@@ -1,0 +1,4 @@
+aiohttp
+aiofiles
+async_timeout
+tqdm
