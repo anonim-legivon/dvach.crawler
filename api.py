@@ -7,7 +7,9 @@ import aiohttp
 import async_timeout
 
 BASE_URL = 'https://2ch.hk'
-BOARD = 'b'
+BOARD = input('Choose board: ')
+if not BOARD:
+    BOARD = 'b'
 HEADERS = {
     'user-agent': ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) '
                    'AppleWebKit/537.36 (KHTML, like Gecko) '
@@ -15,10 +17,10 @@ HEADERS = {
 }
 
 
-async def get_all_threads(BOARD, threads):
+async def get_all_threads(board, threads):
     endpoint = '/threads.json'
-    url = f'{BASE_URL}/{BOARD}{endpoint}'
-    print(f'Getting all threads from /{BOARD}')
+    url = f'{BASE_URL}/{board}{endpoint}'
+    print(f'Getting all threads from /{board}')
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=HEADERS) as resp:
             data = await resp.json()
@@ -44,7 +46,7 @@ webm_threads = []
 
 for thread in threads:
     for key, value in thread.items():
-        if 'webm' in value.lower():
+        if any(subs in value.lower() for subs in ['webm', 'шебм', 'цуиь']):  # add fap and etc for fap threads
             webm_threads.append(key)
 print(f'Total {len(webm_threads)} webm threads')
 
@@ -84,7 +86,7 @@ for e in files:
 
 
 async def download_file(url, name):
-    with async_timeout.timeout(500):
+    with async_timeout.timeout(100):
         async with aiohttp.ClientSession(loop=loop) as session:
             async with session.get(url) as resp:
                 filename = f"{os.curdir}{os.sep}downloads{os.sep}{name}"
@@ -98,6 +100,7 @@ async def download_file(url, name):
 
 
 path = f'{os.curdir}{os.sep}downloads'
+
 if not os.path.exists(path):
     os.makedirs(path)
 
@@ -108,6 +111,8 @@ files_in_dir = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path,
 for each_file in download_list:
     if each_file['fullname'] not in files_in_dir:
         download_list_wo_dupes.append(each_file)
+
+print(f'Found {len(download_list)} files. New files: {len(download_list_wo_dupes)}')
 
 
 async def progress(task):
