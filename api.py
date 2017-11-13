@@ -2,12 +2,14 @@ import asyncio
 import os
 import re
 from collections import Counter
-import tqdm
+
 import aiohttp
 import async_timeout
+import tqdm
 
 BASE_URL = 'https://2ch.hk'
 BOARD = input('Choose board: ')
+MIN_REPLIES = 3  # value less then 3 have 99.9% chance to produce aiohttp.ClientPayloadError. Help me fix this pls :c
 if not BOARD:
     BOARD = 'b'
 HEADERS = {
@@ -20,7 +22,7 @@ HEADERS = {
 async def get_all_threads(board, threads):
     endpoint = '/threads.json'
     url = f'{BASE_URL}/{board}{endpoint}'
-    print(f'Getting all threads from /{board}')
+    print(f'Getting all threads from {board}')
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=HEADERS) as resp:
             data = await resp.json()
@@ -46,7 +48,8 @@ webm_threads = []
 
 for thread in threads:
     for key, value in thread.items():
-        if any(subs in value.lower() for subs in ['webm', 'шебм', 'цуиь']):  # add fap and etc for fap threads
+        if any(subs in value.lower() for subs in
+               ['webm', 'шебм', 'цуиь', 'fap', 'фап', 'афз']):  # remove fap and etc for disable fap threads
             webm_threads.append(key)
 print(f'Total {len(webm_threads)} webm threads')
 
@@ -60,16 +63,14 @@ pwr = []
 
 for post in posts:
     result = re.search(r'#(\d*?)\"', post['comment'])
-    try:
+    if result:
         pwr.append(result.group(1))
-    except:
-        pass
 
 nums = []
 c = Counter(pwr)
 
 for i in c:
-    if c[i] >= 3:
+    if c[i] >= MIN_REPLIES:
         nums.append(i)
 files = []
 
@@ -86,13 +87,14 @@ for e in files:
 
 
 async def download_file(url, name):
-    with async_timeout.timeout(100):
+    with async_timeout.timeout(100):  # Optimal timeout. Less increase chance to TimeoutError
         async with aiohttp.ClientSession(loop=loop) as session:
             async with session.get(url) as resp:
+                assert resp.status == 200
                 filename = f"{os.curdir}{os.sep}downloads{os.sep}{name}"
                 with open(filename, 'wb') as f_handle:
                     while True:
-                        chunk = await resp.content.read(1024)
+                        chunk = await resp.content.read(4096)  # Maybe less or high chunk size?
                         if not chunk:
                             break
                         f_handle.write(chunk)
@@ -122,3 +124,4 @@ async def progress(task):
 
 loop.run_until_complete(
     progress([download_file(BASE_URL + file['path'], file['fullname']) for file in download_list_wo_dupes]))
+loop.close()
