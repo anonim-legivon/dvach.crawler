@@ -87,14 +87,14 @@ for e in files:
 
 
 async def download_file(url, name):
-    with async_timeout.timeout(100):  # Optimal timeout. Less increase chance to TimeoutError
+    with async_timeout.timeout(100):  # Optimal timeout. Less values increase chance to TimeoutError
         async with aiohttp.ClientSession(loop=loop) as session:
             async with session.get(url) as resp:
                 assert resp.status == 200
                 filename = f"{os.curdir}{os.sep}downloads{os.sep}{name}"
                 with open(filename, 'wb') as f_handle:
                     while True:
-                        chunk = await resp.content.read(4096)  # Maybe less or high chunk size?
+                        chunk = await resp.content.read(-1)  # Maybe less or high chunk size (-1 for read until EOF)?
                         if not chunk:
                             break
                         f_handle.write(chunk)
