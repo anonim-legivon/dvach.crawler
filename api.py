@@ -9,7 +9,7 @@ import tqdm
 
 BASE_URL = 'https://2ch.hk'
 BOARD = input('Choose board: ')
-MIN_REPLIES = 3  # value less then 3 have 99.9% chance to produce aiohttp.ClientPayloadError. Help me fix this pls :c
+MIN_REPLIES = 2  # value less then 3 have 99.9% chance to produce aiohttp.ClientPayloadError. Help me fix this pls :c
 if not BOARD:
     BOARD = 'b'
 HEADERS = {
@@ -38,55 +38,7 @@ async def get_thread(thread_num, posts):
     posts.extend(data['threads'][0]['posts'])
 
 
-loop = asyncio.get_event_loop()
-threads = []
-posts = []
-loop.run_until_complete(get_all_threads(BOARD, threads))
-print(f'Total {len(threads)} threads')
-
-webm_threads = []
-
-for thread in threads:
-    for key, value in thread.items():
-        if any(subs in value.lower() for subs in
-               ['webm', 'шебм', 'цуиь', 'fap', 'фап', 'афз']):  # remove fap and etc for disable fap threads
-            webm_threads.append(key)
-print(f'Total {len(webm_threads)} webm threads')
-
-loop.run_until_complete(
-    asyncio.gather(
-        *(get_thread(arg, posts) for arg in webm_threads)
-    )
-)
-
-pwr = []
-
-for post in posts:
-    result = re.search(r'#(\d*?)\"', post['comment'])
-    if result:
-        pwr.append(result.group(1))
-
-nums = []
-c = Counter(pwr)
-
-for i in c:
-    if c[i] >= MIN_REPLIES:
-        nums.append(i)
-files = []
-
-for each_p in posts:
-    if str(each_p['num']) in nums:
-        if each_p['files']:
-            files.append(each_p['files'])
-
-download_list = []
-
-for e in files:
-    for file in e:
-        download_list.append(file)
-
-
-async def download_file(url, name):
+async def download_file(url, name, loop):
     with async_timeout.timeout(100):  # Optimal timeout. Less values increase chance to TimeoutError
         async with aiohttp.ClientSession(loop=loop) as session:
             async with session.get(url) as resp:
@@ -101,27 +53,106 @@ async def download_file(url, name):
                 return await resp.release()
 
 
-path = f'{os.curdir}{os.sep}downloads'
-
-if not os.path.exists(path):
-    os.makedirs(path)
-
-download_list_wo_dupes = []
-
-files_in_dir = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
-
-for each_file in download_list:
-    if each_file['fullname'] not in files_in_dir:
-        download_list_wo_dupes.append(each_file)
-
-print(f'Found {len(download_list)} files. New files: {len(download_list_wo_dupes)}')
+async def produce(queue, file_list):
+    for file in file_list:
+        item = (BASE_URL + file['path'], file['fullname'])
+        # print("Downloading: ", item[0]," file: ", item[1])
+        await queue.put(item)
 
 
-async def progress(task):
-    for f in tqdm.tqdm(asyncio.as_completed(task), total=len(task)):
-        await f
+async def consume(queue, loop, p_bar):
+    while True:
+        # wait for an item from the producer
+        file = await queue.get()
+        # process the item
+        await download_file(file[0], file[1], loop)
+        p_bar.update()
+        # Notify the queue that the item has been processed
+        queue.task_done()
 
 
-loop.run_until_complete(
-    progress([download_file(BASE_URL + file['path'], file['fullname']) for file in download_list_wo_dupes]))
-loop.close()
+async def run(n, file_list, loop):
+    total = len(file_list)
+    p_bar = tqdm.tqdm(total=total)
+
+    queue = asyncio.Queue(maxsize=n)
+    # schedule the consumer
+    consumer = asyncio.ensure_future(consume(queue, loop, p_bar))
+    # run the producer and wait for completion
+    await produce(queue, file_list)
+    # wait until the consumer has processed all items
+    await queue.join()
+    # the consumer is still awaiting for an item, cancel it
+    consumer.cancel()
+
+
+def main():
+    loop = asyncio.get_event_loop()
+    threads = []
+    posts = []
+    loop.run_until_complete(get_all_threads(BOARD, threads))
+    print(f'Total {len(threads)} threads')
+
+    webm_threads = []
+
+    for thread in threads:
+        for key, value in thread.items():
+            if any(subs in value.lower() for subs in
+                   ['webm', 'шебм', 'цуиь', 'fap', 'фап', 'афз']):  # remove fap and etc for disable fap threads
+                webm_threads.append(key)
+    print(f'Total {len(webm_threads)} webm threads')
+
+    loop.run_until_complete(
+        asyncio.gather(
+            *(get_thread(arg, posts) for arg in webm_threads)
+        )
+    )
+
+    pwr = []
+
+    for post in posts:
+        result = re.search(r'#(\d*?)\"', post['comment'])
+        if result:
+            pwr.append(result.group(1))
+
+    nums = []
+    c = Counter(pwr)
+
+    for i in c:
+        if c[i] >= MIN_REPLIES:
+            nums.append(i)
+    files = []
+
+    for each_p in posts:
+        if str(each_p['num']) in nums:
+            if each_p['files']:
+                files.append(each_p['files'])
+
+    download_list = []
+
+    for e in files:
+        for file in e:
+            download_list.append(file)
+
+    path = f'{os.curdir}{os.sep}downloads'
+
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    download_list_wo_dupes = []
+
+    files_in_dir = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+
+    for each_file in download_list:
+        if each_file['fullname'] not in files_in_dir:
+            download_list_wo_dupes.append(each_file)
+
+    print(f'Found {len(download_list)} files. New files: {len(download_list_wo_dupes)}')
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(run(30, download_list_wo_dupes, loop))
+    loop.close()
+
+
+if __name__ == '__main__':
+    main()
