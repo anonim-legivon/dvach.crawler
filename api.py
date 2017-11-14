@@ -6,6 +6,7 @@ from collections import defaultdict
 import aiohttp
 import async_timeout
 import tqdm
+from fake_useragent import UserAgent
 
 # INIT
 BASE_URL = 'https://2ch.hk'
@@ -15,11 +16,8 @@ MAX_QUEUE_SIZE = 30  # Maximum download queues
 if not BOARD:
     BOARD = 'b'
 CHUNK_SIZE = 1024 * 1024  # 1 MB. Use -1 (EOF) if you have good internet channel
-HEADERS = {
-    'user-agent': ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) '
-                   'AppleWebKit/537.36 (KHTML, like Gecko) '
-                   'Chrome/45.0.2454.101 Safari/537.36'),
-}
+ua = UserAgent()  # Pass cache=False if you don’t want cache database (increase init time)
+HEADERS = {'user-agent': ua.random, }
 
 
 async def get_all_threads(board, threads):
@@ -90,9 +88,12 @@ async def run(n, file_list, loop):
 
 def main():
     loop = asyncio.get_event_loop()
+
     threads = []
     posts = []
+
     loop.run_until_complete(get_all_threads(BOARD, threads))
+
     print(f'Total {len(threads)} threads')
 
     matched_threads = []
@@ -121,6 +122,7 @@ def main():
                 replied.append(post_id)
 
     file_list = []
+
     for post_id, reply_count in post_replies.items():
         if reply_count >= MIN_REPLIES:
             try:
@@ -142,7 +144,6 @@ def main():
 
     print(f'Found {len(file_list)} files. New files: {len(download_list)}')
 
-    loop = asyncio.get_event_loop()
     loop.run_until_complete(run(MAX_QUEUE_SIZE, download_list, loop))
     loop.close()
 
