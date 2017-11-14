@@ -1,17 +1,20 @@
 import asyncio
 import os
 import re
-from collections import Counter
+from collections import defaultdict
 
 import aiohttp
 import async_timeout
 import tqdm
 
+# INIT
 BASE_URL = 'https://2ch.hk'
 BOARD = input('Choose board: ')
-MIN_REPLIES = 2  # value less then 3 have 99.9% chance to produce aiohttp.ClientPayloadError. Help me fix this pls :c
+MIN_REPLIES = 2  # Minimum replies to match post
+MAX_QUEUE_SIZE = 30  # Maximum download queues
 if not BOARD:
     BOARD = 'b'
+CHUNK_SIZE = 1024 * 1024  # 1 MB. Use -1 (EOF) if you have good internet channel
 HEADERS = {
     'user-agent': ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) '
                    'AppleWebKit/537.36 (KHTML, like Gecko) '
@@ -46,7 +49,8 @@ async def download_file(url, name, loop):
                 filename = f"{os.curdir}{os.sep}downloads{os.sep}{name}"
                 with open(filename, 'wb') as f_handle:
                     while True:
-                        chunk = await resp.content.read(-1)  # Maybe less or high chunk size (-1 for read until EOF)?
+                        chunk = await resp.content.read(
+                            CHUNK_SIZE)  # Maybe less or high chunk size (-1 for read until EOF)?
                         if not chunk:
                             break
                         f_handle.write(chunk)
@@ -56,7 +60,6 @@ async def download_file(url, name, loop):
 async def produce(queue, file_list):
     for file in file_list:
         item = (BASE_URL + file['path'], file['fullname'])
-        # print("Downloading: ", item[0]," file: ", item[1])
         await queue.put(item)
 
 
@@ -74,7 +77,6 @@ async def consume(queue, loop, p_bar):
 async def run(n, file_list, loop):
     total = len(file_list)
     p_bar = tqdm.tqdm(total=total)
-
     queue = asyncio.Queue(maxsize=n)
     # schedule the consumer
     consumer = asyncio.ensure_future(consume(queue, loop, p_bar))
@@ -93,64 +95,55 @@ def main():
     loop.run_until_complete(get_all_threads(BOARD, threads))
     print(f'Total {len(threads)} threads')
 
-    webm_threads = []
+    matched_threads = []
 
     for thread in threads:
         for key, value in thread.items():
             if any(subs in value.lower() for subs in
-                   ['webm', 'шебм', 'цуиь', 'fap', 'фап', 'афз']):  # remove fap and etc for disable fap threads
-                webm_threads.append(key)
-    print(f'Total {len(webm_threads)} webm threads')
+                   ['webm', 'шебм', 'цуиь', 'fap', 'фап', 'афз', 'afg']):  # Patterns for finding appropriate threads
+                matched_threads.append(key)
+    print(f'Total {len(matched_threads)} webm threads')
 
     loop.run_until_complete(
         asyncio.gather(
-            *(get_thread(arg, posts) for arg in webm_threads)
+            *(get_thread(arg, posts) for arg in matched_threads)
         )
     )
 
-    pwr = []
+    posts = {post['num']: post for post in posts}
+    post_replies = defaultdict(int)
 
-    for post in posts:
-        result = re.search(r'#(\d*?)\"', post['comment'])
-        if result:
-            pwr.append(result.group(1))
+    for post in posts.values():
+        replied = []
+        for post_id in re.findall(r'>>>(\d+) ?', post['comment']):
+            if post_id not in replied:
+                post_replies[int(post_id)] += 1
+                replied.append(post_id)
 
-    nums = []
-    c = Counter(pwr)
-
-    for i in c:
-        if c[i] >= MIN_REPLIES:
-            nums.append(i)
-    files = []
-
-    for each_p in posts:
-        if str(each_p['num']) in nums:
-            if each_p['files']:
-                files.append(each_p['files'])
-
-    download_list = []
-
-    for e in files:
-        for file in e:
-            download_list.append(file)
+    file_list = []
+    for post_id, reply_count in post_replies.items():
+        if reply_count >= MIN_REPLIES:
+            try:
+                file_list.extend(posts[post_id]['files'])
+            except KeyError:
+                pass
 
     path = f'{os.curdir}{os.sep}downloads'
 
     if not os.path.exists(path):
         os.makedirs(path)
 
-    download_list_wo_dupes = []
-
     files_in_dir = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+    download_list = []
 
-    for each_file in download_list:
+    for each_file in file_list:
         if each_file['fullname'] not in files_in_dir:
-            download_list_wo_dupes.append(each_file)
+            download_list.append(each_file)
 
-    print(f'Found {len(download_list)} files. New files: {len(download_list_wo_dupes)}')
+    print(f'Found {len(file_list)} files. New files: {len(download_list)}')
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(run(30, download_list_wo_dupes, loop))
+    loop.run_until_complete(run(MAX_QUEUE_SIZE, download_list, loop))
     loop.close()
 
 
