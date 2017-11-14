@@ -10,7 +10,7 @@ import tqdm
 from fake_useragent import UserAgent
 
 # INIT
-MIRRORS = ('2ch.hk', '2ch.pm', '2ch.re', '2ch.tf', '2ch.wf', '2ch.yt', '2-ch.so')  # 2ch mirrors
+MIRRORS = ['2ch.hk', '2ch.pm', '2ch.re', '2ch.tf', '2ch.wf', '2ch.yt', '2-ch.so']  # 2ch mirrors
 BASE_URL = 'https://{}'.format(choice(MIRRORS))
 BOARD = 'b'
 PATTERNS = ['webm', 'шебм', 'цуиь', 'fap', 'фап', 'афз', 'afg', ]  # Required substrings in OP post
@@ -18,8 +18,9 @@ ANTI_PATTERNS = ['black', 'рулет', ]  # Didn't required substrings in OP po
 MIN_REPLIES = 2  # Minimum replies to match post
 MAX_QUEUE_SIZE = 30  # Maximum download queues
 CHUNK_SIZE = 1024 * 1024  # 1 MB. Use -1 (EOF) if you have good internet channel
-ua = UserAgent()  # Pass cache=False if you don’t want cache database (increase init time)
-HEADERS = {'user-agent': ua.random}
+HEADERS = {
+    'user-agent': UserAgent().random,  # Pass cache=False in () if you don’t want cache database (increase init time)
+}
 
 
 async def get_all_threads(board, threads):
@@ -102,8 +103,9 @@ def main():
 
     for thread in threads:
         for key, value in thread.items():
-            if any(subs in value.lower() for subs in PATTERNS) and all(subs not in value.lower() for subs in
-                                                                       ANTI_PATTERNS):
+            lowers = value.lower()
+            if any(subs in lowers for subs in PATTERNS) and all(subs not in lowers for subs in
+                                                                ANTI_PATTERNS):
                 matched_threads.append(key)
     print(f'Total {len(matched_threads)} webm threads')
 
