@@ -1,8 +1,8 @@
 import asyncio
 import os
-import re
 from collections import defaultdict
 from random import choice
+from re import findall
 
 import aiohttp
 import async_timeout
@@ -10,48 +10,52 @@ import tqdm
 from fake_useragent import UserAgent
 
 # INIT
-MIRRORS = ['2ch.hk', '2ch.pm', '2ch.re', '2ch.tf', '2ch.wf', '2ch.yt', '2-ch.so']  # 2ch mirrors
+MIRRORS = ['2ch.hk', '2ch.pm', '2ch.re', '2ch.tf', '2ch.wf', '2ch.yt', '2-ch.so', ]  # 2ch mirrors
 BASE_URL = 'https://{}'.format(choice(MIRRORS))
 BOARD = 'b'
 PATTERNS = ['webm', 'шебм', 'цуиь', 'fap', 'фап', 'афз', 'afg', ]  # Required substrings in OP post
 ANTI_PATTERNS = ['black', 'рулет', ]  # Didn't required substrings in OP post
 MIN_REPLIES = 2  # Minimum replies to match post
 MAX_QUEUE_SIZE = 30  # Maximum download queues
-CHUNK_SIZE = 1024 * 1024  # 1 MB. Use -1 (EOF) if you have good internet channel
-HEADERS = {
-    'user-agent': UserAgent().random,  # Pass cache=False in () if you don’t want cache database (increase init time)
-}
+# TODO: Подобрать подходящий размер чанка. Сейчас 1 МБ.
+CHUNK_SIZE = 1024 * 1024
+TIMEOUT = 100  # You can increase this value if you have TimeoutError.
 
 
+# TODO: Сделать опциональную возможность делать реквесты через proxy. В сессию передавать proxy=
 async def get_all_threads(board, threads):
     endpoint = '/threads.json'
     url = f'{BASE_URL}/{board}{endpoint}'
     print(f'Getting all threads from {board}')
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=HEADERS) as resp:
+        async with session.get(url, headers={f'user-agent': UserAgent().random}) as resp:
+            assert resp.status == 200
             data = await resp.json()
     threads.extend([{thread['num']: thread['comment']} for thread in data['threads']])
 
 
+# TODO: Сделать опциональную возможность делать реквесты через proxy. В сессию передавать proxy=
 async def get_thread(thread_num, posts):
     endpoint = '/res/'
     url = f'{BASE_URL}/{BOARD}{endpoint}{thread_num}.json'
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=HEADERS) as resp:
+        async with session.get(url, headers={f'user-agent': UserAgent().random}) as resp:
+            assert resp.status == 200
             data = await resp.json()
     posts.extend(data['threads'][0]['posts'])
 
 
+# TODO: Сделать опциональную возможность делать реквесты через proxy. В сессию передавать proxy=
 async def download_file(url, name, loop):
-    with async_timeout.timeout(100):  # Optimal timeout. Less values increase chance to TimeoutError
+    with async_timeout.timeout(TIMEOUT):
         async with aiohttp.ClientSession(loop=loop) as session:
-            async with session.get(url) as resp:
+            async with session.get(url, headers={f'user-agent': UserAgent().random}) as resp:
                 assert resp.status == 200
                 filename = f"{os.curdir}{os.sep}downloads{os.sep}{name}"
                 with open(filename, 'wb') as f_handle:
                     while True:
                         chunk = await resp.content.read(
-                            CHUNK_SIZE)  # Maybe less or high chunk size (-1 for read until EOF)?
+                            CHUNK_SIZE)
                         if not chunk:
                             break
                         f_handle.write(chunk)
@@ -95,6 +99,7 @@ def main():
     threads = []
     posts = []
 
+    # TODO: Сделать обход всех борд превратив BOARD в список BOARDS
     loop.run_until_complete(get_all_threads(BOARD, threads))
 
     print(f'Total {len(threads)} threads')
@@ -107,20 +112,20 @@ def main():
             if any(subs in lowers for subs in PATTERNS) and all(subs not in lowers for subs in
                                                                 ANTI_PATTERNS):
                 matched_threads.append(key)
-    print(f'Total {len(matched_threads)} webm threads')
-
+    print(f'Total {len(matched_threads)} matched threads')
     loop.run_until_complete(
         asyncio.gather(
             *(get_thread(arg, posts) for arg in matched_threads)
         )
     )
 
+    # TODO: По возможности упростить вакханалию ниже
     posts = {post['num']: post for post in posts}
     post_replies = defaultdict(int)
 
     for post in posts.values():
         replied = []
-        for post_id in re.findall(r'>>>(\d+) ?', post['comment']):
+        for post_id in findall(r'>>>(\d+) ?', post['comment']):
             if post_id not in replied:
                 post_replies[int(post_id)] += 1
                 replied.append(post_id)
@@ -130,9 +135,10 @@ def main():
     for post_id, reply_count in post_replies.items():
         if reply_count >= MIN_REPLIES:
             try:
+
                 file_list.extend(posts[post_id]['files'])
             except KeyError:
-                pass
+                pass  # Ошибка возникает, если находится пост с реплаем в другой тред (DT), он нам не нужен.
 
     path = f'{os.curdir}{os.sep}downloads'
 
