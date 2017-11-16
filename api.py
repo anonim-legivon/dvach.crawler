@@ -1,8 +1,8 @@
 import asyncio
 import os
 import re
-import traceback
-# import logging
+import traceback  # TODO: Избавиться от этого
+# import logging # TODO: Следует сделать логгирование
 from collections import defaultdict
 
 import aiohttp
@@ -13,7 +13,11 @@ from fake_useragent import UserAgent
 from config import *
 
 
-# TODO: Сделать опциональную возможность делать реквесты через proxy. В сессию передавать proxy=
+# TODOs
+# TODO: Добавить в config.py список ограничивающий расширения скачиваемых файлов
+# TODO: Может стоит грузить OP посты в отдельную папку и вообще сделать разные папки для картинок, gif и видео
+
+# TODO: Сделать опциональную возможность делать реквесты через proxy. В сессию передавать параметр proxy='url'
 async def get_async(url, *args):
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers={'user-agent': UserAgent().random}) as resp:
@@ -102,7 +106,7 @@ async def get_all(boards):
     await run(MAX_QUEUE_SIZE, download_list)
 
 
-# TODO: Сделать опциональную возможность загружать файлы через proxy. В сессию передавать proxy=
+# TODO: Сделать опциональную возможность загружать файлы через proxy. В сессию передавать параметр proxy='url'
 async def download_file(url, name):
     with async_timeout.timeout(TIMEOUT):
         async with aiohttp.ClientSession() as session:
