@@ -1,5 +1,5 @@
 import asyncio
-import os
+import os, sys
 import re
 import traceback  # TODO: Избавиться от этого
 # import logging # TODO: Следует сделать логгирование
@@ -16,10 +16,10 @@ from config import *
 # TODOs
 # TODO: Может стоит грузить OP посты в отдельную папку и вообще сделать разные папки для картинок, gif и видео
 
-# TODO: Сделать опциональную возможность делать реквесты через proxy. В сессию передавать параметр proxy='url'
 async def get_async(url, *args):
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers={'user-agent': UserAgent().random}) as resp:
+        headers = {'user-agent': UserAgent().random}
+        async with session.get(url, headers=headers, proxy=PROXY) as resp:
             if resp.status == 200:
                 data = await resp.json()
                 return data, args
@@ -53,7 +53,6 @@ async def get_all(boards):
                     file_list.extend(posts[post_id]['files'])
                 except KeyError:
                     pass  # Ошибка возникает, если находится пост с реплаем в другой тред (DT), он нам не нужен.
-
         path = f'{os.curdir}{os.sep}downloads'
 
         if not os.path.exists(path):
@@ -65,8 +64,8 @@ async def get_all(boards):
         for each_file in file_list:
             if each_file['fullname'].split('.')[0] == '':
                 each_file['fullname'] = each_file['name']
-            n_condition = each_file['fullname'] not in files_in_dir  # TODO: Фильтр пустых имен. Проверь тут.
-            f_ext = each_file['fullname'].split('.')[-1]  # Фильтр по расширениям
+            n_condition = each_file['fullname'] not in files_in_dir  # Фильтр пустых имен. [+]
+            f_ext = each_file['fullname'].split('.')[-1]  # Фильтр по расширениям [+]
             ext_condition = f_ext in ALLOWED_EXT
             if n_condition and ext_condition:
                 filtered_download_list.append(each_file)
@@ -109,11 +108,11 @@ async def get_all(boards):
     await run(MAX_QUEUE_SIZE, download_list)
 
 
-# TODO: Сделать опциональную возможность загружать файлы через proxy. В сессию передавать параметр proxy='url'
 async def download_file(url, name):
     with async_timeout.timeout(TIMEOUT):
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers={'user-agent': UserAgent().random}) as resp:
+            headers = {'user-agent': UserAgent().random}
+            async with session.get(url, headers=headers, proxy=PROXY) as resp:
                 assert resp.status == 200
                 filename = f"{os.curdir}{os.sep}downloads{os.sep}{name}"
                 with open(filename, 'wb') as f_handle:
@@ -159,8 +158,36 @@ async def run(n, file_list):
 
 def main():
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(get_all(BOARDS))
-    loop.close()
+    try:
+        # Теперь корректно выходит по Ctrl-c :3
+        #
+        # https://stackoverflow.com/questions/30765606/whats-the-correct-way-to-clean-up-after-an-interrupted-event-loop
+        # Here `amain(loop)` is the core coroutine that may spawn any
+        # number of tasks
+        sys.exit(loop.run_until_complete(get_all(BOARDS)))
+    except KeyboardInterrupt:
+        # Optionally show a message if the shutdown may take a while
+        print("Attempting graceful shutdown, press Ctrl+C again to exit…", flush=True)
+
+        # Do not show `asyncio.CancelledError` exceptions during shutdown
+        # (a lot of these may be generated, skip this if you prefer to see them)
+        def shutdown_exception_handler(loop, context):
+            if "exception" not in context \
+            or not isinstance(context["exception"], asyncio.CancelledError):
+                loop.default_exception_handler(context)
+        loop.set_exception_handler(shutdown_exception_handler)
+
+        # Handle shutdown gracefully by waiting for all tasks to be cancelled
+        tasks = asyncio.gather(*asyncio.Task.all_tasks(loop=loop), loop=loop, return_exceptions=True)
+        tasks.add_done_callback(lambda t: loop.stop())
+        tasks.cancel()
+
+        # Keep the event loop running until it is either destroyed or all
+        # tasks have really terminated
+        while not tasks.done() and not loop.is_closed():
+            loop.run_forever()
+    finally:
+        loop.close()
 
 
 if __name__ == '__main__':

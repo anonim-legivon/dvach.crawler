@@ -5,5 +5,8 @@ ALLOWED_EXT = ['webm', 'mp4', ]  # Разрешенные расширения �
 ANTI_PATTERNS = ['black', 'рулет', ]  # Didn't required substrings in OP post
 MIN_REPLIES = 2  # Minimum replies to match post
 MAX_QUEUE_SIZE = 30  # Maximum download queues
-CHUNK_SIZE = 1024 * 1024  # TODO: Подобрать подходящий размер чанка. Сейчас 1 МБ.
-TIMEOUT = 100  # You can increase this value if you have TimeoutError.
+CHUNK_SIZE = 1024 * 1024  # Погулил - >=1 МБ норм, на чанах нету огромных файлов.
+TIMEOUT = 100  # You can increase this value if you have TimeoutError. Or if you're using proxy
+PROXY = None # HTTP/HTTPS only, example: "http//asdasd:asdasd@127.0.0.1:8080"
+             # pip install proxybroker
+             # proxybroker find --types HTTP HTTPS --countries RU --strict -l 10
