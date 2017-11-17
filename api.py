@@ -14,7 +14,6 @@ from config import *
 
 
 # TODOs
-# TODO: Добавить в config.py список ограничивающий расширения скачиваемых файлов
 # TODO: Может стоит грузить OP посты в отдельную папку и вообще сделать разные папки для картинок, gif и видео
 
 # TODO: Сделать опциональную возможность делать реквесты через proxy. В сессию передавать параметр proxy='url'
@@ -67,7 +66,7 @@ async def get_all(boards):
             f_name = each_file['fullname'] if each_file['fullname'].split('.')[0] != '' else each_file[
                 'name']
             n_condition = f_name not in files_in_dir  # TODO: Фильтр пустых имен. Проверь тут.
-            ext_condition = f_name.split('.')[-1] in ALLOWED_EXT
+            ext_condition = f_name.split('.')[-1] in ALLOWED_EXT  # Фильтр по расширениям
             if n_condition and ext_condition:
                 filtered_download_list.append(each_file)
 

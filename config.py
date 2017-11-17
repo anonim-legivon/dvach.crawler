@@ -1,7 +1,7 @@
 BASE_URL = 'https://2ch.hk'  # 2ch url, if .hk didn't work use other, e.g. .pm
 BOARDS = ['b', 'vg']  # Список борд на которых искать
 PATTERNS = ['webm', 'шебм', 'цуиь', 'fap', 'фап', 'афз', 'afg', ]  # Required substrings in OP post
-ALLOWED_EXT = ['webm', 'mp4', ]
+ALLOWED_EXT = ['webm', 'mp4', ]  # Разрешенные расширения файлов
 ANTI_PATTERNS = ['black', 'рулет', ]  # Didn't required substrings in OP post
 MIN_REPLIES = 3  # Minimum replies to match post
 MAX_QUEUE_SIZE = 30  # Maximum download queues
