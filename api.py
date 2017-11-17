@@ -63,10 +63,11 @@ async def get_all(boards):
         filtered_download_list = []
 
         for each_file in file_list:
-            f_name = each_file['fullname'] if each_file['fullname'].split('.')[0] != '' else each_file[
-                'name']
-            n_condition = f_name not in files_in_dir  # TODO: Фильтр пустых имен. Проверь тут.
-            ext_condition = f_name.split('.')[-1] in ALLOWED_EXT  # Фильтр по расширениям
+            if each_file['fullname'].split('.')[0] == '':
+                each_file['fullname'] = each_file['name']
+            n_condition = each_file['fullname'] not in files_in_dir  # TODO: Фильтр пустых имен. Проверь тут.
+            f_ext = each_file['fullname'].split('.')[-1]  # Фильтр по расширениям
+            ext_condition = f_ext in ALLOWED_EXT
             if n_condition and ext_condition:
                 filtered_download_list.append(each_file)
 
@@ -126,8 +127,7 @@ async def download_file(url, name):
 
 async def produce(queue, file_list):
     for file in file_list:
-        item = (BASE_URL + file['path'], file['fullname'] if file['fullname'].split('.')[0] != '' else file[
-            'name'])  # TODO: Фильтр пустых имен. И тут проверь. Тут явно повторение одного и того же. Нужно упрощать :c
+        item = (BASE_URL + file['path'], file['fullname'])  # TODO: Фильтр пустых имен. И тут проверь.
         await queue.put(item)
 
 
