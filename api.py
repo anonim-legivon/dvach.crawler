@@ -64,7 +64,11 @@ async def get_all(boards):
         filtered_download_list = []
 
         for each_file in file_list:
-            if each_file['fullname'] not in files_in_dir:
+            f_name = each_file['fullname'] if each_file['fullname'].split('.')[0] != '' else each_file[
+                'name']
+            n_condition = f_name not in files_in_dir  # TODO: Фильтр пустых имен. Проверь тут.
+            ext_condition = f_name.split('.')[-1] in ALLOWED_EXT
+            if n_condition and ext_condition:
                 filtered_download_list.append(each_file)
 
         print(f'Найдено {len(file_list)} файлов. Новых: {len(filtered_download_list)}.')
@@ -80,7 +84,7 @@ async def get_all(boards):
             try:
                 f_res = future.result()
                 result.extend(f_res[0]['threads'][0]['posts'])
-            except future.exception() or KeyError:  # TODO: Тут все таки лучше явно указать тип ошибок, надо тестировать
+            except:  # TODO: Тут все таки лучше явно указать тип отлавливаемых ошибок, надо тестировать
                 print("Unexpected error: {}".format(traceback.format_exc()))
         return result
 
@@ -88,7 +92,7 @@ async def get_all(boards):
         result = []
         endpoint = '/threads.json'
         urls = [(f'{BASE_URL}/{board}{endpoint}', board) for board in boards_list]
-        futures = [get_async(url[0], url[1]) for url in urls]  # url[1] == board | pass board to exculde future parsing
+        futures = [get_async(url[0], url[1]) for url in urls]  # url[1] == board | pass board to exclude future parsing
         done, _ = await asyncio.wait(futures)
         for future in done:
             data, board = future.result()
@@ -102,7 +106,6 @@ async def get_all(boards):
         return result
 
     download_list = await main_async(boards)
-    print(f'\nВсего найдено новых файлов: {len(download_list)}.\n')
     await run(MAX_QUEUE_SIZE, download_list)
 
 
@@ -115,8 +118,7 @@ async def download_file(url, name):
                 filename = f"{os.curdir}{os.sep}downloads{os.sep}{name}"
                 with open(filename, 'wb') as f_handle:
                     while True:
-                        chunk = await resp.content.read(
-                            CHUNK_SIZE)
+                        chunk = await resp.content.read(CHUNK_SIZE)
                         if not chunk:
                             break
                         f_handle.write(chunk)
@@ -125,7 +127,8 @@ async def download_file(url, name):
 
 async def produce(queue, file_list):
     for file in file_list:
-        item = (BASE_URL + file['path'], file['fullname'])
+        item = (BASE_URL + file['path'], file['fullname'] if file['fullname'].split('.')[0] != '' else file[
+            'name'])  # TODO: Фильтр пустых имен. И тут проверь. Тут явно повторение одного и того же. Нужно упрощать :c
         await queue.put(item)
 
 
@@ -142,6 +145,7 @@ async def consume(queue, p_bar):
 
 async def run(n, file_list):
     total = len(file_list)
+    print(f'\nВсего найдено новых файлов: {total}.\n')
     p_bar = tqdm.tqdm(total=total)
     queue = asyncio.Queue(maxsize=n)
     # schedule the consumer
@@ -157,7 +161,6 @@ async def run(n, file_list):
 def main():
     loop = asyncio.get_event_loop()
     loop.run_until_complete(get_all(BOARDS))
-    # loop.run_until_complete(run(MAX_QUEUE_SIZE, download_list, loop))
     loop.close()
 
 
