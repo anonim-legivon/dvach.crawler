@@ -1,6 +1,7 @@
 import asyncio
-import os, sys
+import os
 import re
+import sys
 import traceback  # TODO: Избавиться от этого
 # import logging # TODO: Следует сделать логгирование
 from collections import defaultdict
@@ -83,7 +84,7 @@ async def get_all(boards):
             try:
                 f_res = future.result()
                 result.extend(f_res[0]['threads'][0]['posts'])
-            except:  # TODO: Тут все таки лучше явно указать тип отлавливаемых ошибок, надо тестировать
+            except:  # TODO: Лучше явно указать тип отлавливаемых ошибок, надо тестировать. Есть ли они тут?
                 print("Unexpected error: {}".format(traceback.format_exc()))
         return result
 
@@ -171,10 +172,11 @@ def main():
 
         # Do not show `asyncio.CancelledError` exceptions during shutdown
         # (a lot of these may be generated, skip this if you prefer to see them)
-        def shutdown_exception_handler(loop, context):
+        def shutdown_exception_handler(e_loop, context):
             if "exception" not in context \
-            or not isinstance(context["exception"], asyncio.CancelledError):
-                loop.default_exception_handler(context)
+                    or not isinstance(context["exception"], asyncio.CancelledError):
+                e_loop.default_exception_handler(context)
+
         loop.set_exception_handler(shutdown_exception_handler)
 
         # Handle shutdown gracefully by waiting for all tasks to be cancelled
