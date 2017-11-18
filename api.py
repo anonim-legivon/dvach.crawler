@@ -3,7 +3,7 @@ import os
 import re
 import sys
 import traceback  # TODO: Избавиться от этого
-# import logging # TODO: Следует сделать логгирование
+# import logging # TODO: Сделать логгирование
 from collections import defaultdict
 
 import aiohttp
@@ -65,9 +65,11 @@ async def get_all(boards):
         for each_file in file_list:
             if each_file['fullname'].split('.')[0] == '':
                 each_file['fullname'] = each_file['name']
+
+            f_ext = each_file['fullname'].split('.')[-1]
             n_condition = each_file['fullname'] not in files_in_dir  # Фильтр пустых имен. [+]
-            f_ext = each_file['fullname'].split('.')[-1]  # Фильтр по расширениям [+]
-            ext_condition = f_ext in ALLOWED_EXT
+            ext_condition = f_ext in ALLOWED_EXT  # Фильтр по расширениям [+]
+
             if n_condition and ext_condition:
                 filtered_download_list.append(each_file)
 
@@ -127,7 +129,7 @@ async def download_file(url, name):
 
 async def produce(queue, file_list):
     for file in file_list:
-        item = (BASE_URL + file['path'], file['fullname'])  # TODO: Фильтр пустых имен. И тут проверь.
+        item = (BASE_URL + file['path'], file['fullname'])
         await queue.put(item)
 
 
@@ -168,13 +170,13 @@ def main():
         sys.exit(loop.run_until_complete(get_all(BOARDS)))
     except KeyboardInterrupt:
         # Optionally show a message if the shutdown may take a while
-        print("Attempting graceful shutdown, press Ctrl+C again to exit…", flush=True)
+        print('Attempting graceful shutdown, press Ctrl+C again to exit…', flush=True)
 
         # Do not show `asyncio.CancelledError` exceptions during shutdown
         # (a lot of these may be generated, skip this if you prefer to see them)
         def shutdown_exception_handler(e_loop, context):
-            if "exception" not in context \
-                    or not isinstance(context["exception"], asyncio.CancelledError):
+            if 'exception' not in context \
+                    or not isinstance(context['exception'], asyncio.CancelledError):
                 e_loop.default_exception_handler(context)
 
         loop.set_exception_handler(shutdown_exception_handler)
