@@ -54,6 +54,7 @@ async def get_all(boards):
                     file_list.extend(posts[post_id]['files'])
                 except KeyError:
                     pass  # Ошибка возникает, если находится пост с реплаем в другой тред (DT), он нам не нужен.
+
         path = f'{os.curdir}{os.sep}downloads'
 
         if not os.path.exists(path):
