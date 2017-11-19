@@ -1,3 +1,5 @@
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/24c873da9fe940d7a718da2cd20e4a86)](https://www.codacy.com/app/fadedDexofan/dvach.crawler?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=anonim-legivon/dvach.crawler&amp;utm_campaign=Badge_Grade)
+
 **Контакты:**
 
 tg: @dexofan
